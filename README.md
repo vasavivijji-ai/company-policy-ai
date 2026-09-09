@@ -22,3 +22,7 @@ An AI-powered question-answering application using Retrieval-Augmented Generatio
 ## Project Goal
 
 The application allows employees to ask questions about company policies and receive answers based on the provided company documents.
+
+## Current Status
+
+Currently developing the RAG chatbot and preparing it for deployment.
