@@ -19,6 +19,14 @@ st.sidebar.write(
 st.sidebar.write("Model: GPT-5 mini")
 
 
+st.write("### Example Questions")
+
+st.write("- How many vacation days do employees receive?")
+st.write("- Can employees work remotely?")
+st.write("- What insurance benefits are available?")
+st.write("- How early should I request vacation?")
+
+
 question = st.text_input(
     "Enter your question:"
 )
@@ -28,26 +36,28 @@ if st.button("Ask"):
 
     if question:
 
-        try:
+        with st.spinner("Thinking..."):
 
-            response = requests.get(
-                "http://127.0.0.1:8000/ask",
-                params={"question": question}
-            )
+            try:
 
-            response.raise_for_status()
+                response = requests.get(
+                    "http://127.0.0.1:8000/ask",
+                    params={"question": question}
+                )
 
-            data = response.json()
+                response.raise_for_status()
 
-            st.subheader("Answer")
+                data = response.json()
 
-            st.write(data["answer"])
+                st.success("Answer")
 
-        except requests.exceptions.RequestException:
+                st.write(data["answer"])
 
-            st.error(
-                "Could not connect to the FastAPI backend."
-            )
+            except requests.exceptions.RequestException:
+
+                st.error(
+                    "Could not connect to the FastAPI backend."
+                )
 
     else:
 
