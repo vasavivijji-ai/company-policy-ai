@@ -1,13 +1,26 @@
-from langchain_community.document_loaders import TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from sentence_transformers import SentenceTransformer
+import os
 
 import faiss
+import numpy as np
+
+from dotenv import load_dotenv
+from openai import OpenAI
+
+from langchain_community.document_loaders import TextLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
-# ==========================================
-# STEP 1: LOAD DOCUMENT
-# ==========================================
+# Load environment variables
+load_dotenv()
+
+api_key = os.getenv("OPENAI_API_KEY")
+
+client = OpenAI(api_key=api_key)
+
+
+# -----------------------------------
+# 1. Load company policy document
+# -----------------------------------
 
 loader = TextLoader(
     "documents/company_policy.txt"
@@ -16,9 +29,9 @@ loader = TextLoader(
 documents = loader.load()
 
 
-# ==========================================
-# STEP 2: SPLIT DOCUMENT
-# ==========================================
+# -----------------------------------
+# 2. Split document into chunks
+# -----------------------------------
 
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=200,
@@ -29,28 +42,34 @@ chunks = text_splitter.split_documents(
     documents
 )
 
-
-print("RAG Engine")
 print("Total chunks:", len(chunks))
 
 
-# ==========================================
-# STEP 3: CREATE EMBEDDINGS
-# ==========================================
+# -----------------------------------
+# 3. Create OpenAI embeddings
+# -----------------------------------
 
-embedding_model = SentenceTransformer(
-    "all-MiniLM-L6-v2"
-)
+def create_embeddings(texts):
+
+    response = client.embeddings.create(
+        model="text-embedding-3-small",
+        input=texts
+    )
+
+    return np.array(
+        [item.embedding for item in response.data],
+        dtype="float32"
+    )
+
 
 chunk_texts = [
     chunk.page_content
     for chunk in chunks
 ]
 
-embeddings = embedding_model.encode(
+embeddings = create_embeddings(
     chunk_texts
 )
-
 
 print(
     "Embedding shape:",
@@ -58,9 +77,9 @@ print(
 )
 
 
-# ==========================================
-# STEP 4: CREATE FAISS INDEX
-# ==========================================
+# -----------------------------------
+# 4. Create FAISS vector index
+# -----------------------------------
 
 embedding_dimension = embeddings.shape[1]
 
@@ -68,10 +87,7 @@ index = faiss.IndexFlatL2(
     embedding_dimension
 )
 
-index.add(
-    embeddings.astype("float32")
-)
-
+index.add(embeddings)
 
 print(
     "Vectors in FAISS:",
@@ -79,9 +95,9 @@ print(
 )
 
 
-# ==========================================
-# STEP 5: RETRIEVE RELEVANT DOCUMENTS
-# ==========================================
+# -----------------------------------
+# 5. Retrieve relevant documents
+# -----------------------------------
 
 def retrieve_relevant_documents(
     question,
@@ -89,14 +105,12 @@ def retrieve_relevant_documents(
     max_distance=0.8
 ):
 
-    # Convert question to embedding
-    question_embedding = embedding_model.encode(
+    question_embedding = create_embeddings(
         [question]
     )
 
-    # Search FAISS
     distances, indices = index.search(
-        question_embedding.astype("float32"),
+        question_embedding,
         top_k
     )
 
@@ -117,9 +131,9 @@ def retrieve_relevant_documents(
     return results
 
 
-# ==========================================
-# STEP 6: CREATE CONTEXT
-# ==========================================
+# -----------------------------------
+# 6. Create context
+# -----------------------------------
 
 def create_context(results):
 
@@ -131,9 +145,9 @@ def create_context(results):
     return context
 
 
-# ==========================================
-# STEP 7: COMPLETE RAG RETRIEVAL
-# ==========================================
+# -----------------------------------
+# 7. Public function for FastAPI
+# -----------------------------------
 
 def retrieve_context(question):
 
@@ -142,7 +156,6 @@ def retrieve_context(question):
     )
 
     if not results:
-
         return None
 
     context = create_context(
