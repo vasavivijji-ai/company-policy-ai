@@ -4,3 +4,7 @@ openai
 python-dotenv
 streamlit
 requests
+langchain-community
+langchain-text-splitters
+sentence-transformers
+faiss-cpu

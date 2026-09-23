@@ -4,175 +4,161 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from openai import OpenAI
 
+from rag_engine import retrieve_context
 
-# Load environment variables from .env
+
+# ==========================================
+# LOAD ENVIRONMENT VARIABLES
+# ==========================================
+
 load_dotenv()
 
-
-# Get OpenAI API key
-api_key = os.getenv("OPENAI_API_KEY")
-
-
-# Create OpenAI client
-client = OpenAI(api_key=api_key)
+api_key = os.getenv(
+    "OPENAI_API_KEY"
+)
 
 
-# Create FastAPI application
-app = FastAPI()
+# ==========================================
+# CREATE OPENAI CLIENT
+# ==========================================
+
+client = OpenAI(
+    api_key=api_key
+)
 
 
-# Home endpoint
+# ==========================================
+# CREATE FASTAPI APPLICATION
+# ==========================================
+
+app = FastAPI(
+    title="Company Policy AI Assistant",
+    description="RAG-based AI assistant for company policies",
+    version="1.0"
+)
+
+
+# ==========================================
+# HOME
+# ==========================================
+
 @app.get("/")
 def home():
+
     return {
-        "message": "My AI API is working!"
+        "message": "Company Policy AI Assistant is running!"
     }
 
 
-# About endpoint
+# ==========================================
+# ABOUT
+# ==========================================
+
 @app.get("/about")
 def about():
+
     return {
         "project": "Company Policy AI Assistant",
-        "technology": "FastAPI + OpenAI",
-        "purpose": "Answer questions using company policy"
+        "technology": "Python + FastAPI + RAG + FAISS + OpenAI",
+        "purpose": "Answer questions using company policy documents"
     }
 
 
-# Health endpoint
+# ==========================================
+# HEALTH CHECK
+# ==========================================
+
 @app.get("/health")
 def health():
+
     return {
         "status": "healthy",
         "service": "Company Policy AI Assistant"
     }
 
 
-# Model information endpoint
+# ==========================================
+# MODEL INFORMATION
+# ==========================================
+
 @app.get("/model")
 def model_info():
+
     return {
-        "model": "gpt-5-mini"
+        "model": "gpt-5-mini",
+        "architecture": "RAG + FAISS + OpenAI"
     }
 
 
-# Ask endpoint
+# ==========================================
+# ASK QUESTION
+# ==========================================
+
 @app.get("/ask")
-def ask_question(question: str):
+def ask_question(
+    question: str
+):
 
-    # Company policy
-    company_policy = """
-    Company Policy:
+    # ======================================
+    # RETRIEVE RELEVANT CONTEXT
+    # ======================================
 
-    1. Vacation:
-    Employees receive 15 vacation days per year.
-
-    2. Remote Work:
-    Employees may work remotely according to company guidelines.
-
-    3. Health Insurance:
-    The company provides health insurance benefits to employees.
-
-    4. Dental and Vision:
-    The company provides dental and vision insurance benefits.
-
-    5. Sick Leave:
-    Employees receive sick leave according to company policy.
-
-    6. Vacation Requests:
-    Employees should request vacation in advance according to company guidelines.
-
-    7. Federal Holidays:
-    The company observes designated federal holidays.
-
-    8. Company Laptop:
-    Eligible employees may receive a company laptop for work purposes.
-    """
-
-
-    # -----------------------------
-    # GUARDRAIL
-    # -----------------------------
-
-    policy_keywords = [
-        "vacation",
-        "remote",
-        "work",
-        "insurance",
-        "dental",
-        "vision",
-        "sick",
-        "holiday",
-        "laptop",
-        "company",
-        "employee",
-        "leave"
-    ]
-
-
-    # Convert question to lowercase
-    question_lower = question.lower()
-
-
-    # Check whether question is related to company policy
-    is_policy_question = any(
-        keyword in question_lower
-        for keyword in policy_keywords
+    context = retrieve_context(
+        question
     )
 
 
-    # Stop unrelated questions
-    if not is_policy_question:
+    # ======================================
+    # GUARDRAIL
+    # ======================================
+
+    if context is None:
+
         return {
             "question": question,
-            "answer": "I can only answer questions about company policies."
+            "answer":
+                "I couldn't find relevant information "
+                "in the company policy."
         }
 
 
-    # -----------------------------
-    # AI INSTRUCTIONS
-    # -----------------------------
+    # ======================================
+    # LLM INSTRUCTIONS
+    # ======================================
 
     instructions = f"""
-    You are the Company Policy AI Assistant.
+You are the Company Policy AI Assistant.
 
-    Answer the user's question using ONLY the company policy
-    provided below.
+Answer the user's question using ONLY
+the company policy context provided below.
 
-    Rules:
+Rules:
 
-    1. Use only the information in the company policy.
+1. Use only the information in the context.
 
-    2. Do not use general knowledge.
+2. Do not use general knowledge.
 
-    3. Do not provide information about other companies.
+3. Do not make up information.
 
-    4. Do not provide laws or policies from other countries.
+4. Do not add information that is not supported
+by the provided context.
 
-    5. Do not make up information.
+5. If the answer is not available in the context,
+say:
 
-    6. If the policy contains information that answers the question,
-       provide that information clearly.
+"I couldn't find that information in the company policy."
 
-    7. If the policy contains partial information,
-       provide only the information that is available.
+6. Keep the answer short and direct.
 
-    8. If the policy contains absolutely no information
-       related to the question, say:
+Company Policy Context:
 
-       "I couldn't find that information in the company policy."
-
-    9. Keep the answer short and direct.
-
-    Company Policy:
-
-    {company_policy}
-    """
+{context}
+"""
 
 
-    # -----------------------------
+    # ======================================
     # CALL OPENAI
-    # -----------------------------
+    # ======================================
 
     response = client.responses.create(
         model="gpt-5-mini",
@@ -181,11 +167,17 @@ def ask_question(question: str):
     )
 
 
-    # Get AI answer
+    # ======================================
+    # GET ANSWER
+    # ======================================
+
     answer = response.output_text
 
 
-    # Return response
+    # ======================================
+    # RETURN JSON
+    # ======================================
+
     return {
         "question": question,
         "answer": answer
